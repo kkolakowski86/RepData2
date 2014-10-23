@@ -1,0 +1,9 @@
+---
+title: "Impact of natural disasters on economy and public health"
+author: "Krzysztof Kołakowski"
+output: html_document
+---
+
+##Synopsis
+
+In this report I'll try to analyze the impact and corelation between 
