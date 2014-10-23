@@ -7,3 +7,31 @@ output: html_document
 ##Synopsis
 
 In this report I'll try to analyze the impact and corelation between 
+
+
+```{r}
+#install.packages('R.utils')
+library(R.utils)
+
+extractData <- function()
+{   
+    compressedFile <- 'repdata-data-StormData.csv'
+    extractedFile  <- 'temporary/repdata-data-StormData.csv'
+    
+    if (!file.exists(extractedFile))
+    {
+        bunzip2(
+            filename  = compressedFile,
+            destname  = extractedFile, 
+            remove    = FALSE, 
+            overwrite = FALSE
+        )
+    }
+
+    
+}
+
+extractData()
+
+
+
