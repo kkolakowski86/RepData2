@@ -6,32 +6,173 @@ output: html_document
 
 ##Synopsis
 
-In this report I'll try to analyze the impact and corelation between 
+In this report I'll try to analyze the impact of various natural disasters on public health and economic problems. I will use dataset from U.S. National Oceanic and Atmospheric Administration's (NOAA) which contains observation data from 1950 to 2011. 
 
 
+##Data Processing
+
+Raw data is in "repdata-data-StormData.csv.bz2" file in main project directory. Because it's compressed, first thing i need to do is extracting the file to "temporary" directory. You can clean temporary directory, it's fully reproducible. I've created this directory to save time and memory and not to load this big dataset every time when I want to rerun the code. 
 ```{r}
 #install.packages('R.utils')
 library(R.utils)
+library(plyr)
+library(sqldf)
 
-extractData <- function()
+extractData <- function(input, output)
 {   
-    compressedFile <- 'repdata-data-StormData.csv'
-    extractedFile  <- 'temporary/repdata-data-StormData.csv'
-    
-    if (!file.exists(extractedFile))
+    if (!file.exists(output))
     {
         bunzip2(
-            filename  = compressedFile,
-            destname  = extractedFile, 
+            filename  = input,
+            destname  = output, 
             remove    = FALSE, 
             overwrite = FALSE
         )
-    }
-
-    
+    }    
 }
 
-extractData()
+extractData('repdata-data-StormData.csv.bz2', 'temporary/repdata-data-StormData.csv')
+
+```
+
+Reading raw data from CSV (only on first time or when "temporary" directory is cleaned). 
+
+If it is first run, i have to load raw data file and clean not needed columns to save some memory. 
+
+```{r}
 
 
+if (!file.exists("temporary/preprocesed.csv"))
+{
+    
+    d <- read.csv("temporary/repdata-data-StormData.csv", stringsAsFactors=FALSE, header = TRUE)
+    d <- data.frame(
+        as.Date(d$BGN_DATE, "%m/%d/%Y %H:%M:%S"), 
+        d$EVTYPE, 
+        d$FATALITIES, 
+        d$INJURIES,
+        d$PROPDMG,
+        as.character(d$PROPDMGEXP),
+        d$CROPDMG,
+        as.character(d$CROPDMGEXP),
+        d$REFNUM,    
+        stringsAsFactors=FALSE
+    )
+
+    colnames(d) <- c(
+        "BGN_DATE", 
+        "EVTYPE", 
+        "FATALITIES", 
+        "INJURIES",
+        "PROPDMG", 
+        "PROPDMGEXP", 
+        "CROPDMG", 
+        "CROPDMGEXP",
+        "REFNUM"
+    )
+    
+
+  
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="0"] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="1"] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="2"] <- 10
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="3"] <- 1^3
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="4"] <- 1^4
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="5"] <- 1^5
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="6"] <- 1^6
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="7"] <- 1^7
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="8"] <- 1^8
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="9"] <- 10^9
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="-"] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="?"] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="+"] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)==""] <- 1
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="h"] <- 100
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="k"] <- 1000
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="m"] <- 1000000
+    d$PROPDMGEXP[tolower(d$PROPDMGEXP)=="b"] <- 1000000000
+ 
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="0"] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="1"] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="2"] <- 10
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="3"] <- 1^3
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="4"] <- 1^4
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="5"] <- 1^5
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="6"] <- 1^6
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="7"] <- 1^7
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="8"] <- 1^8
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="9"] <- 10^9
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="-"] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="?"] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="+"] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)==""] <- 1
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="h"] <- 100
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="k"] <- 1000
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="m"] <- 1000000
+    d$CROPDMGEXP[tolower(d$CROPDMGEXP)=="b"] <- 1000000000  
+  
+    
+    d$PROPDMGEXP_CASH <- as.numeric(d$PROPDMG)*as.numeric(d$PROPDMGEXP)
+    d$PROPDMGEXP_CASH[is.na( d$PROPDMGEXP_CASH)] <- 0
+
+    d$CROPDMGEXP_CASH <- as.numeric(d$CROPDMG)*as.numeric(d$CROPDMGEXP)
+    d$CROPDMGEXP_CASH[is.na( d$CROPDMGEXP_CASH)] <- 0
+      
+    d$DMG_TOTAL = d$CROPDMGEXP_CASH + d$PROPDMGEXP_CASH
+  
+    write.table(d, file = "temporary/preprocesed.csv", sep = ",",  col.names=NA);
+
+} else {
+    d <- read.csv("temporary/preprocesed.csv", stringsAsFactors=FALSE, header = TRUE)
+}
+
+```
+
+After i have preprocesed data, i can calculate fatalities/injuries/damage by event type. 
+
+```{r}
+
+
+total.fatalities <- sort(tapply(d$FATALITIES, d$EVTYPE, sum), decreasing = T)
+total.injuries   <- sort(tapply(d$INJURIES,   d$EVTYPE, sum), decreasing = T)
+total.damage     <- sort(tapply(d$DMG_TOTAL,  d$EVTYPE, sum), decreasing = T)
+
+```
+
+## Results
+Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+
+
+```{r}
+library(ggplot2)
+options(scipen=999)
+# fatalities
+
+xlab<-"Ev type"
+angleVal <- 45
+
+
+makePlot <- function (data, title, ylab)
+{
+    keys      <- as.vector(names(head(data)))
+    values    <- as.vector(head(data))
+    dataFrame <- data.frame(keys, values)
+    localenv  <- environment()
+    ggplot(
+        environment = localenv,
+        data = dataFrame, 
+        aes(x = dataFrame$keys, y = dataFrame$values)) + 
+        geom_bar(stat = "identity") + 
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+        xlab("EV type") + 
+        ylab("Fatalities") + 
+        ggtitle(title)
+}
+makePlot(total.fatalities, "Top event type by fatalities", "Fatalities")
+
+makePlot(total.injuries, "Top event type by injuries", "Injuries")
+
+makePlot(total.damage, "Top event type by damage", "Damage")
+ 
 
